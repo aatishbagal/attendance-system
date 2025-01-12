@@ -1,0 +1,89 @@
+<Landing>
+
+Attendance System
+Main Menu
+
+1. Create New Record
+2. View and edit records by date
+3. View and edit classes
+
+4. Exit program
+
+>> Enter option index to continue: 
+
+<Create new record>
+
+Attendance System
+Select class
+
+1. CS-A
+2. CS-B
+3. CS-C
+4. CS-D
+
+5. Exit
+
+>> Enter option index to continue:
+
+<Create New Record screen 2>
+
+Attendance System [CS-B]
+Date: {Current date}
+
+[ ] 1 - Name surname
+[ ] 2 - Name surname
+[ ] 3 - Name surname
+[ ] 4 - Name surname
+[ ] 5 - Name surname
+
+[ ] Save and Exit
+[ ] Discard and Exit
+
+>> Enter option index to continue: 
+
+<View and edit Report by date screen 1>
+
+View Report By date
+Select class
+
+[ ] CS-A
+[ ] CS-B
+[ ] CS-C
+[ ] CS-D
+
+[ ] Exit
+
+>> Enter option index to continue: 
+
+<View and edit Report by date screen 2>
+
+View Report by date
+Select record
+
+[ ] 11-12-2024
+[ ] 12-12-2024
+[ ] 01-01-2025
+[ ] 02-01-2025
+
+[ ] Exit
+
+>> Enter option index to continue: 
+
+<View and edit Report by date screen 3>
+
+View Report by date
+CS-B Attendance report
+Date: 01-01-2025
+
+[P] Name Surname
+[P] Name Surname
+[A] Name Surname
+[P] Name Surname
+[A] Name Surname
+
+[ ] Edit record
+[ ] Exit
+<The record should not be editable unless edit record mode is on>
+>> Enter option index to continue: 
+
+

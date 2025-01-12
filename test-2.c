@@ -1,79 +1,92 @@
+// <Landing>
+
+// Attendance System
+// Main Menu
+
+// [ ] Create New Record
+// [ ] View and edit records by date
+// [ ] View and edit classes
+
+// [ ] Exit program
+
+// >> Press space to select and enter to continue.
+
+// <Create new record>
+
+// Attendance System
+// Select class
+
+// [ ] CS-A
+// [ ] CS-B
+// [ ] CS-C
+// [ ] CS-D
+
+// [ ] Exit
+
+// >> Press space to select and enter to continue.
+
+// <Create New Record screen 2>
+
+// Attendance System [CS-B]
+// Date: {Current date}
+
+// [ ] 1 - Name surname
+// [ ] 2 - Name surname
+// [ ] 3 - Name surname
+// [ ] 4 - Name surname
+// [ ] 5 - Name surname
+
+// [ ] Save and Exit
+// [ ] Discard and Exit
+
+// >> Press space to select and enter to continue.
+
+// <View and edit Report by date screen 1>
+
+// View Report By date
+// Select class
+
+// [ ] CS-A
+// [ ] CS-B
+// [ ] CS-C
+// [ ] CS-D
+
+// [ ] Exit
+
+// >> Press space to select and enter to continue.
+
+// <View and edit Report by date screen 2>
+
+// View Report by date
+// Select record
+
+// [ ] 11-12-2024
+// [ ] 12-12-2024
+// [ ] 01-01-2025
+// [ ] 02-01-2025
+
+// [ ] Exit
+
+// >> Press space to select and enter to continue.
+
+// <View and edit Report by date screen 3>
+
+// View Report by date
+// CS-B Attendance report
+// Date: 01-01-2025
+
+// [P] Name Surname
+// [P] Name Surname
+// [A] Name Surname
+// [P] Name Surname
+// [A] Name Surname
+
+// [ ] Edit record
+// [ ] Exit
+// <The record should not be editable unless edit record mode is on>
+// >> Press space to select and enter to continue.
+
+
 #include <stdio.h>
 #include <stdlib.h>
 #include "pdcurses/curses.h"
-
-void print_menu(WINDOW *menu_win, int highlight, int checked[], char *choices[], int n_choices) {
-    int x, y, i;
-
-    x = 2;
-    y = 2;
-
-    box(menu_win, 0, 0);
-    for (i = 0; i < n_choices; ++i) {
-        if (highlight == i + 1) {
-            wattron(menu_win, A_REVERSE);
-        }
-        mvwprintw(menu_win, y, x, "[%c] %s", checked[i] ? 'P' : ' ', choices[i]);
-        wattroff(menu_win, A_REVERSE);
-        y++;
-    }
-    wrefresh(menu_win);
-}
-
-int main() {
-    WINDOW *menu_win;
-    int highlight = 1;
-    int choice = 0;
-    int c;
-
-    char *choices[] = {
-        "Option 1",
-        "Option 2",
-        "Option 3",
-        "Option 4",
-        "Exit"
-    };
-    int n_choices = sizeof(choices) / sizeof(char *);
-    int checked[n_choices];
-    for (int i = 0; i < n_choices; ++i) checked[i] = 0;
-
-    initscr();
-    clear();
-    noecho();
-    cbreak();
-    menu_win = newwin(10, 30, 4, 4);
-    keypad(menu_win, TRUE);
-
-    print_menu(menu_win, highlight, checked, choices, n_choices);
-    while (1) {
-        c = wgetch(menu_win);
-        switch (c) {
-            case KEY_UP:
-                if (highlight == 1)
-                    highlight = n_choices;
-                else
-                    --highlight;
-                break;
-            case KEY_DOWN:
-                if (highlight == n_choices)
-                    highlight = 1;
-                else
-                    ++highlight;
-                break;
-            case ' ':
-                checked[highlight - 1] = !checked[highlight - 1];
-                break;
-            case 10:
-                choice = highlight;
-                break;
-            default:
-                break;
-        }
-        print_menu(menu_win, highlight, checked, choices, n_choices);
-        if (choice == n_choices) // Exit selected
-            break;
-    }
-
-    endwin();
-    return 0;
-}

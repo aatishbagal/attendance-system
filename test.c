@@ -1,6 +1,8 @@
-//compile command
+//compile command windows
 //gcc test.c -I \PDCurses -L PDCurses\wincon -lpdcurses -o test.exe
 
+//linux
+//gcc test.c -lncurses -o test
 
 #include <stdio.h>
 #include <stdlib.h>
