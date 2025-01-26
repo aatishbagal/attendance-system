@@ -5,6 +5,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <time.h>
+#include <sys/stat.h>
 
 #define MAX_STUDENTS 40
 #define MAX_CLASSES 4
@@ -34,6 +35,7 @@ AttendanceRecord records[MAX_RECORDS];
 int recordCount = 0;
 
 void init_curses();
+void ensure_data_directory();
 int show_menu(char *options[], int count, int startY);
 void create_new_record();
 void view_edit_records();
@@ -46,7 +48,12 @@ void view_record(AttendanceRecord *record, bool editMode);
 void save_record(AttendanceRecord *record);
 void edit_record(AttendanceRecord *record);
 void delete_record(int recordIndex);
+void save_class_to_csv(Class *class);
+void load_class_from_csv(Class *class);
+void edit_student_name(Class *class, int studentIndex);
+void view_edit_classes();
 bool show_confirmation_dialog(char* date);
+void add_student(Class *class);
 
 void init_curses() {
     initscr();
@@ -58,7 +65,17 @@ void init_curses() {
     init_pair(1, COLOR_WHITE, COLOR_BLUE);
 }
 
+void ensure_data_directory() {
+    #ifdef _WIN32
+        _mkdir("data");
+    #else
+        mkdir("data/", 0755);
+    #endif
+}
+
 void init_sample_data() {
+    ensure_data_directory();
+    
     char *classNames[] = {"CS-A", "CS-B", "CS-C", "CS-D"};
     for (int i = 0; i < MAX_CLASSES; i++) {
         strcpy(classes[i].name, classNames[i]);
@@ -67,9 +84,9 @@ void init_sample_data() {
             sprintf(classes[i].students[j].name, "Student %d", j + 1);
             classes[i].students[j].id = j + 1;
         }
+        save_class_to_csv(&classes[i]);
     }
 }
-
 void getCurrentDate(char *date) {
     time_t t = time(NULL);
     struct tm *tm = localtime(&t);
@@ -394,152 +411,230 @@ bool show_confirmation_dialog(char* date) {
     
     return choice == 0;  
 }
-void view_edit_classes() {
-    clear();
-    mvprintw(0, 0, "View and Edit Classes");
-
-    char *options[] = {
-        "Create New Class",
-        "Edit Classes",
-        "Exit"
-    };
-
-    int selected = show_menu(options, 3, 2);
-    switch (selected) {
-        case 0:
-            create_new_class();
-            break;
-        case 1:
-            edit_classes();
-            break;
-        case 2:
-            return;
+void save_class_to_csv(Class *class) {
+    char filename[100];
+    sprintf(filename, "data/%s.csv", class->name);
+    
+    FILE *file = fopen(filename, "w");
+    if (!file) return;
+    
+    fprintf(file, "ID,Name\n");
+    for (int i = 0; i < class->studentCount; i++) {
+        fprintf(file, "%d,%s\n", 
+                class->students[i].id, 
+                class->students[i].name);
     }
+    fclose(file);
 }
-
-void create_new_class() {
-    clear();
-    mvprintw(0, 0, "Create New Class");
-
-    if (classCount >= MAX_CLASSES) {
-        mvprintw(2, 0, "Maximum class limit reached.");
-        getch();
-        return;
-    }
-
-    char className[20];
-    mvprintw(2, 0, "Enter class name: ");
-    echo();
-    getstr(className);
-    noecho();
-
-    // Check if class already exists
-    for (int i = 0; i < classCount; i++) {
-        if (strcmp(classes[i].name, className) == 0) {
-            mvprintw(4, 0, "Class already exists!");
-            getch();
-            return;
-        }
-    }
-
-    Class newClass;
-    strcpy(newClass.name, className);
-    newClass.studentCount = 0;
-
-    mvprintw(4, 0, "Enter student details (ID and Name). Press ENTER on empty ID to stop:");
-    for (int i = 0; i < MAX_STUDENTS; i++) {
-        char idStr[10];
+void load_class_from_csv(Class *class) {
+    char filename[100];
+    sprintf(filename, "data/%s.csv", class->name);
+    
+    FILE *file = fopen(filename, "r");
+    if (!file) return;
+    
+    char line[200];
+    fgets(line, sizeof(line), file);
+    
+    class->studentCount = 0;
+    while (fgets(line, sizeof(line), file) && 
+           class->studentCount < MAX_STUDENTS) {
+        int id;
         char name[50];
-
-        mvprintw(6 + i, 0, "ID: ");
-        echo();
-        getstr(idStr);
-        noecho();
-        if (strlen(idStr) == 0) break;
-
-        mvprintw(6 + i, 20, "Name: ");
-        echo();
-        getstr(name);
-        noecho();
-
-        newClass.students[i].id = atoi(idStr);
-        strcpy(newClass.students[i].name, name);
-        newClass.studentCount++;
+        sscanf(line, "%d,%[^\n]", &id, name);
+        
+        class->students[class->studentCount].id = id;
+        strcpy(class->students[class->studentCount].name, name);
+        class->studentCount++;
     }
-
-    classes[classCount] = newClass;
-    classCount++;
-
-    save_class(&newClass);
-    save_classes();
+    fclose(file);
 }
-
-void edit_classes() {
+void edit_student_name(Class *class, int studentIndex) {
     clear();
-    mvprintw(0, 0, "Edit Classes");
+    mvprintw(0, 0, "Edit Student Name");
+    mvprintw(2, 0, "Current Name: %s", 
+             class->students[studentIndex].name);
+    
+    mvprintw(4, 0, "New Name: ");
+    echo();
+    curs_set(1);
+    
+    char newName[50];
+    getstr(newName);
+    
+    noecho();
+    curs_set(0);
+    
+    if (strlen(newName) > 0) {
+        strcpy(class->students[studentIndex].name, newName);
+        save_class_to_csv(class);
+    }
+}
+void view_edit_classes() {
+    int classIndex = select_class();
+    if (classIndex >= MAX_CLASSES) return;
 
-    if (classCount == 0) {
-        mvprintw(2, 0, "No classes exist.");
-        getch();
+    Class *selectedClass = &classes[classIndex];
+    load_class_from_csv(selectedClass);
+
+    int selected = 0;
+    int ch;
+
+    while (1) {
+        clear();
+        mvprintw(0, 0, "Attendance System [%s]", selectedClass->name);
+        mvprintw(1, 0, "Manage Students\n\n");
+
+        for (int i = 0; i < selectedClass->studentCount; i++) {
+            mvprintw(3 + i, 0, "[ ]");
+            mvprintw(3 + i, 4, "%d - %s", 
+                    selectedClass->students[i].id,
+                    selectedClass->students[i].name);
+            if (i == selected) {
+                mvprintw(3 + i, 1, "*");
+            }
+        }
+    
+        mvprintw(3 + selectedClass->studentCount, 0, "[ ]");
+        mvprintw(3 + selectedClass->studentCount, 4, "Add Student");
+        mvprintw(4 + selectedClass->studentCount, 0, "[ ]");
+        mvprintw(4 + selectedClass->studentCount, 4, "Exit");
+
+        if (selected == selectedClass->studentCount) {
+            mvprintw(3 + selectedClass->studentCount, 1, "*");
+        }
+        if (selected == selectedClass->studentCount + 1) {
+            mvprintw(4 + selectedClass->studentCount, 1, "*");
+        }
+
+        refresh();
+        ch = getch();
+
+        switch (ch) {
+            case KEY_UP:
+                selected = (selected - 1 + selectedClass->studentCount + 2) % (selectedClass->studentCount + 2);
+                break;
+            case KEY_DOWN:
+                selected = (selected + 1) % (selectedClass->studentCount + 2);
+                break;
+            case ' ': 
+                if (selected < selectedClass->studentCount) {
+                    // Edit student name
+                    clear();
+                    mvprintw(0, 0, "Edit Student Name");
+                    mvprintw(2, 0, "Current Name: %s", 
+                             selectedClass->students[selected].name);
+                    
+                    mvprintw(4, 0, "New Name: ");
+                    echo();
+                    curs_set(1);
+                    
+                    char newName[50];
+                    getstr(newName);
+                    
+                    noecho();
+                    curs_set(0);
+                    
+                    if (strlen(newName) > 0) {
+                        strcpy(selectedClass->students[selected].name, newName);
+                        save_class_to_csv(selectedClass);
+                    }
+                }
+                break;
+            case '\n':
+                if (selected == selectedClass->studentCount) {
+                    add_student(selectedClass);
+                } else if (selected == selectedClass->studentCount + 1) {
+                    return;
+                }
+                break;
+        }
+    }
+}
+void add_student(Class *selectedClass) {
+    if (selectedClass->studentCount >= MAX_STUDENTS) {
         return;
     }
 
-    char *options[classCount + 1];
-    for (int i = 0; i < classCount; i++) {
-        options[i] = classes[i].name;
-    }
-    options[classCount] = "Exit";
-
-    int selected = show_menu(options, classCount + 1, 2);
-    if (selected == classCount) return;
-
-    Class *class = &classes[selected];
-
     clear();
-    mvprintw(0, 0, "Edit Class: %s", class->name);
+    mvprintw(0, 0, "Add New Student");
+    mvprintw(2, 0, "Enter Student Name: ");
+    
+    echo();
+    curs_set(1);
+    char newStudentName[50];
+    getstr(newStudentName);
+    noecho();
+    curs_set(0);
 
-    // Display current students
-    for (int i = 0; i < class->studentCount; i++) {
-        mvprintw(2 + i, 0, "Student %d: ID %d, Name %s", 
-                 i + 1, class->students[i].id, class->students[i].name);
+    if (strlen(newStudentName) > 0) {
+        strcpy(selectedClass->students[selectedClass->studentCount].name, newStudentName);
+        selectedClass->students[selectedClass->studentCount].id = selectedClass->studentCount + 1;
+        selectedClass->studentCount++;
+        save_class_to_csv(selectedClass);
     }
+}
+void save_attendance_record(AttendanceRecord *record) {
+    char filename[100];
+    sprintf(filename, "data/%s_attendance.csv", record->className);
+    
+    FILE *file = fopen(filename, "a");
+    if (!file) return;
+    
+    fseek(file, 0, SEEK_END);
+    if (ftell(file) == 0) {
+        fprintf(file, "Date,");
+        for (int i = 0; i < record->studentCount; i++) {
+            fprintf(file, "Student %d,", i+1);
+        }
+        fprintf(file, "\n");
+    }
+    
+    fprintf(file, "%s,", record->date);
+    for (int i = 0; i < record->studentCount; i++) {
+        fprintf(file, "%c,", record->attendance[i]);
+    }
+    fprintf(file, "\n");
+    
+    fclose(file);
+}
 
-    mvprintw(2 + class->studentCount + 2, 0, "Press any key to start editing, ESC to cancel");
-    int ch = getch();
-    if (ch == 27) return; // ESC key
 
-    // Edit students
-    for (int i = 0; i < class->studentCount; i++) {
-        char idStr[10], name[50];
-
-        mvprintw(4 + i, 0, "Edit Student %d", i + 1);
+void load_attendance_records() {
+    for (int i = 0; i < MAX_CLASSES; i++) {
+        char filename[100];
+        sprintf(filename, "data/%s_attendance.csv", classes[i].name);
         
-        mvprintw(5 + i, 0, "Current ID (%d): ", class->students[i].id);
-        echo();
-        getstr(idStr);
-        noecho();
+        FILE *file = fopen(filename, "r");
+        if (!file) continue;
 
-        mvprintw(6 + i, 0, "Current Name (%s): ", class->students[i].name);
-        echo();
-        getstr(name);
-        noecho();
+        char line[1000];
+        fgets(line, sizeof(line), file);
 
-        if (strlen(idStr) > 0) {
-            class->students[i].id = atoi(idStr);
+        while (fgets(line, sizeof(line), file) && recordCount < MAX_RECORDS) {
+            char *token = strtok(line, ",");
+            if (!token) continue;
+
+            strcpy(records[recordCount].date, token);
+            strcpy(records[recordCount].className, classes[i].name);
+            records[recordCount].studentCount = classes[i].studentCount;
+
+            for (int j = 0; j < classes[i].studentCount; j++) {
+                token = strtok(NULL, ",");
+                records[recordCount].attendance[j] = token ? token[0] : 'A';
+            }
+
+            recordCount++;
         }
-        if (strlen(name) > 0) {
-            strcpy(class->students[i].name, name);
-        }
+        fclose(file);
     }
-
-    save_class(class);
-    save_classes();
 }
 
 int main() {
     init_curses();
+    ensure_data_directory();
     init_sample_data();
-
+    load_attendance_records();
     char *main_options[] = {
         "Create New Record",
         "View and edit records by date",
@@ -562,7 +657,7 @@ int main() {
                 view_edit_records();
                 break;
             case 2:
-                // TODO: Implement class editing
+                view_edit_classes();
                 break;
             case 3:
                 endwin();
