@@ -1,14 +1,16 @@
-//gcc test-2.c -I \PDCurses -L PDCurses\wincon -lpdcurses -o test-2.exe
-//gcc test-2.c -lncurses -o test-2
+//gcc test-3.c -I \PDCurses -L PDCurses\wincon -lpdcurses -o test-3.exe
+//gcc test-3.c -lncurses -o test-3
+//gcc test-3.c -o test-3.exe -lncurses -DNCURSES_STATIC
 
 #include "pdcurses/curses.h"
 #include <string.h>
 #include <stdlib.h>
 #include <time.h>
 #include <sys/stat.h>
+#include <dirent.h>
 
 #define MAX_STUDENTS 40
-#define MAX_CLASSES 4
+#define MAX_CLASSES 10
 #define MAX_RECORDS 100
 #define MAX_OPTIONS 10
 
@@ -33,6 +35,7 @@ typedef struct {
 Class classes[MAX_CLASSES];
 AttendanceRecord records[MAX_RECORDS];
 int recordCount = 0;
+int classCount = 0;
 
 void init_curses();
 void ensure_data_directory();
@@ -54,6 +57,7 @@ void edit_student_name(Class *class, int studentIndex);
 void view_edit_classes();
 bool show_confirmation_dialog(char* date);
 void add_student(Class *class);
+void load_classes_from_directory();
 
 void init_curses() {
     initscr();
@@ -126,17 +130,70 @@ int show_menu(char *options[], int count, int startY) {
 }
 
 int select_class() {
-    clear();
-    mvprintw(0, 0, "Attendance System");
-    mvprintw(1, 0, "Select class\n\n");
+    load_classes_from_directory();
 
-    char *options[MAX_CLASSES + 1];
-    for (int i = 0; i < MAX_CLASSES; i++) {
-        options[i] = classes[i].name;
+    while (1) {
+        clear();
+        mvprintw(0, 0, "Attendance System");
+        mvprintw(1, 0, "Select class\n\n");
+
+        char *options[MAX_CLASSES + 2];
+        for (int i = 0; i < classCount; i++) {
+            options[i] = classes[i].name;
+        }
+        options[classCount] = "Add New Class";
+        options[classCount + 1] = "Exit";
+
+        int choice = show_menu(options, classCount + 2, 3);
+
+        if (choice == classCount) {
+            clear();
+            mvprintw(0, 0, "Add New Class");
+            mvprintw(2, 0, "Enter Class Name: ");
+            
+            echo();
+            curs_set(1);
+            char className[20];
+            getstr(className);
+            noecho();
+            curs_set(0);
+
+            if (strlen(className) > 0) {
+                bool exists = false;
+                for (int i = 0; i < classCount; i++) {
+                    if (strcmp(classes[i].name, className) == 0) {
+                        exists = true;
+                        break;
+                    }
+                }
+
+                if (exists) {
+                    mvprintw(4, 0, "Class already exists!");
+                    refresh();
+                    getch();
+                    continue;
+                }
+
+                strcpy(classes[classCount].name, className);
+                classes[classCount].studentCount = 0;
+                save_class_to_csv(&classes[classCount]);
+                classCount++;
+
+                load_classes_from_directory();
+
+                mvprintw(4, 0, "Class created successfully!");
+                refresh();
+                getch();
+                continue;
+            }
+            continue;
+        }
+        else if (choice == classCount + 1 || choice == -1) {
+            return -1;
+        }
+
+        return choice;
     }
-    options[MAX_CLASSES] = "Exit";
-
-    return show_menu(options, MAX_CLASSES + 1, 3);
 }
 
 void mark_attendance(int classIndex) {
@@ -299,16 +356,16 @@ void edit_record(AttendanceRecord *record) {
             case KEY_DOWN:
                 selected = (selected + 1) % (tempRecord.studentCount + 2);
                 break;
-            case ' ': // Toggle attendance
+            case ' ':
                 if (selected < tempRecord.studentCount) {
                     tempRecord.attendance[selected] = (tempRecord.attendance[selected] == 'P') ? 'A' : 'P';
                 }
                 break;
             case '\n':
-                if (selected == tempRecord.studentCount) { // Save and Exit
-                    *record = tempRecord; // Copy back the edited data
+                if (selected == tempRecord.studentCount) {
+                    *record = tempRecord;
                     return;
-                } else if (selected == tempRecord.studentCount + 1) { // Discard and Exit
+                } else if (selected == tempRecord.studentCount + 1) {
                     return;
                 }
                 break;
@@ -328,7 +385,7 @@ void view_record(AttendanceRecord *record, bool editMode) {
     mvprintw(2, 0, "Date: %s\n\n", record->date);
 
     int classIndex = -1;
-    // Find corresponding class
+
     for (int i = 0; i < MAX_CLASSES; i++) {
         if (strcmp(classes[i].name, record->className) == 0) {
             classIndex = i;
@@ -519,7 +576,6 @@ void view_edit_classes() {
                 break;
             case ' ': 
                 if (selected < selectedClass->studentCount) {
-                    // Edit student name
                     clear();
                     mvprintw(0, 0, "Edit Student Name");
                     mvprintw(2, 0, "Current Name: %s", 
@@ -629,11 +685,35 @@ void load_attendance_records() {
         fclose(file);
     }
 }
+void load_classes_from_directory() {
+    classCount = 0;
+    DIR *dir;
+    struct dirent *ent;
+    
+    if ((dir = opendir("data")) != NULL) {
+        while ((ent = readdir(dir)) != NULL && classCount < MAX_CLASSES) {
+            if (strstr(ent->d_name, ".csv") && 
+                !strstr(ent->d_name, "_attendance.csv")) {
+                
+                char className[20];
+                strncpy(className, ent->d_name, strlen(ent->d_name) - 4);
+                className[strlen(ent->d_name) - 4] = '\0';
+                
+                strcpy(classes[classCount].name, className);
+                
+                load_class_from_csv(&classes[classCount]);
+                
+                classCount++;
+            }
+        }
+        closedir(dir);
+    }
+}
 
 int main() {
     init_curses();
     ensure_data_directory();
-    init_sample_data();
+    load_classes_from_directory();
     load_attendance_records();
     char *main_options[] = {
         "Create New Record",
